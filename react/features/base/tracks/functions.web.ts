@@ -20,6 +20,18 @@ import loadEffects from './loadEffects';
 import logger from './logger';
 import { ITrackOptions } from './types';
 
+/**
+ * The type of the return value of {@link createPrejoinTracks}.
+ */
+export interface IPrejoinTracks {
+    errors: {
+        audioAndVideoError?: Error;
+        audioOnlyError?: Error;
+        videoOnlyError?: Error;
+    };
+    tryCreateLocalTracks: Promise<any[]>;
+}
+
 export * from './functions.any';
 
 /**
@@ -49,9 +61,13 @@ export function createLocalTracksF(options: ITrackOptions = {}, store?: IStore, 
 
     // TODO The app's settings should go in the redux store and then the
     // reliance on the global variable APP will go away.
-    store = store || APP.store; // eslint-disable-line no-param-reassign
+    const _store = store || (typeof (window as any).APP === 'undefined' ? undefined : (window as any).APP.store);
 
-    const state = store.getState();
+    if (!_store) {
+        return Promise.reject(new Error('Redux store is not available'));
+    }
+
+    const state = _store.getState();
 
     if (typeof cameraDeviceId === 'undefined' || cameraDeviceId === null) {
         cameraDeviceId = getUserSelectedCameraDeviceId(state);
@@ -67,13 +83,13 @@ export function createLocalTracksF(options: ITrackOptions = {}, store?: IStore, 
 
     const constraints = options.constraints ?? state['features/base/config'].constraints ?? {};
 
-    if (isAdvancedAudioSettingsEnabled(state) && typeof APP !== 'undefined') {
+    if (isAdvancedAudioSettingsEnabled(state)) {
         constraints.audio = state['features/settings'].audioSettings ?? getLocalJitsiAudioTrackSettings(state);
     }
 
 
     return (
-        loadEffects(store).then((effectsArray: Object[]) => {
+        loadEffects(_store).then((effectsArray: Object[]) => {
             if (recordTimeMetrics) {
                 getJitsiMeetGlobalNSConnectionTimes()['trackEffects.loaded'] = window.performance.now();
             }
@@ -109,17 +125,16 @@ export function createLocalTracksF(options: ITrackOptions = {}, store?: IStore, 
  * Returns an object containing a promise which resolves with the created tracks and the errors resulting from that
  * process.
  *
- * @returns {Promise<JitsiLocalTrack[]>}
- *
- * @todo Refactor to not use APP.
+ * @param {IStore} store - The redux store.
+ * @returns {IPrejoinTracks}
  */
-export function createPrejoinTracks() {
-    const errors: any = {};
+export function createPrejoinTracks(store: IStore): IPrejoinTracks {
+    const errors: IPrejoinTracks['errors'] = {};
     const initialDevices = [ MEDIA_TYPE.AUDIO ];
     const requestedAudio = true;
     let requestedVideo = false;
-    const { startAudioOnly, startWithVideoMuted } = APP.store.getState()['features/base/settings'];
-    const startWithAudioMuted = getStartWithAudioMuted(APP.store.getState());
+    const { startAudioOnly, startWithVideoMuted } = store.getState()['features/base/settings'];
+    const startWithAudioMuted = getStartWithAudioMuted(store.getState());
 
     // On Electron there is no permission prompt for granting permissions. That's why we don't need to
     // spend much time displaying the overlay screen. If GUM is not resolved within 15 seconds it will
@@ -131,7 +146,7 @@ export function createPrejoinTracks() {
     // which would results in statistics ( such as "No audio input" or "Are you trying to speak?") being available
     // only after that point.
     if (startWithAudioMuted) {
-        APP.store.dispatch(setAudioMuted(true));
+        store.dispatch(setAudioMuted(true));
     }
 
     if (!startWithVideoMuted && !startAudioOnly) {
@@ -139,8 +154,8 @@ export function createPrejoinTracks() {
         requestedVideo = true;
     }
 
-    let tryCreateLocalTracks: any = Promise.resolve([]);
-    const { dispatch } = APP.store;
+    let tryCreateLocalTracks: Promise<any[]> = Promise.resolve([]);
+    const { dispatch } = store;
 
     dispatch(gumPending(initialDevices, IGUMPendingState.PENDING_UNMUTE));
 
@@ -148,7 +163,7 @@ export function createPrejoinTracks() {
         tryCreateLocalTracks = createLocalTracksF({
             devices: initialDevices,
             timeout
-        }, APP.store)
+        }, store)
         .catch(async (err: Error) => {
             if (err.name === JitsiTrackErrors.TIMEOUT && !browser.isElectron()) {
                 errors.audioAndVideoError = err;

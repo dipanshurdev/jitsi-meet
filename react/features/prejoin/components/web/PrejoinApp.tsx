@@ -60,7 +60,7 @@ export default class PrejoinApp extends BaseApp<Props> {
         }));
 
         await dispatch?.(setupInitialDevices());
-        const { tryCreateLocalTracks, errors } = createPrejoinTracks();
+        const { tryCreateLocalTracks, errors } = createPrejoinTracks(store as IStore);
 
         const tracks = await tryCreateLocalTracks;
 
