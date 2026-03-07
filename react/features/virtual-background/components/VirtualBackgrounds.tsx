@@ -17,7 +17,7 @@ import Spinner from '../../base/ui/components/web/Spinner';
 import { showWarningNotification } from '../../notifications/actions';
 import { NOTIFICATION_TIMEOUT_TYPE } from '../../notifications/constants';
 import { BACKGROUNDS_LIMIT, IMAGES, type Image, VIRTUAL_BACKGROUND_TYPE } from '../constants';
-import { toDataURL } from '../functions';
+import { resizeImage, toDataURL } from '../functions';
 import logger from '../logger';
 import { IVirtualBackground } from '../reducer';
 
@@ -300,7 +300,8 @@ function VirtualBackgrounds({
 
         if (image) {
             try {
-                const url = await toDataURL(image.src);
+                const resData = await toDataURL(image.src);
+                const url = await resizeImage(resData);
 
                 onOptionsChange({
                     backgroundEffectEnabled: true,
@@ -312,8 +313,6 @@ function VirtualBackgrounds({
             } catch (err) {
                 logger.error('Could not fetch virtual background image:', err);
             }
-
-            setLoading(false);
         }
     }, []);
 

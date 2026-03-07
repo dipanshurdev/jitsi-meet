@@ -120,15 +120,50 @@ export default class JitsiStreamBackgroundEffect {
 
         // Draw the background.
         this._outputCanvasCtx.globalCompositeOperation = 'destination-over';
-        if (backgroundType === VIRTUAL_BACKGROUND_TYPE.IMAGE) {
-            this._outputCanvasCtx?.drawImage( // @ts-ignore
-                backgroundType === VIRTUAL_BACKGROUND_TYPE.IMAGE
-                    ? this._virtualImage : this._virtualVideo,
-                0,
-                0,
-                this._outputCanvasElement.width,
-                this._outputCanvasElement.height
-            );
+
+        if (backgroundType === VIRTUAL_BACKGROUND_TYPE.IMAGE && this._virtualImage) {
+            const img = this._virtualImage;
+            const targetWidth = this._outputCanvasElement.width;
+            const targetHeight = this._outputCanvasElement.height;
+
+            if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                const targetRatio = targetWidth / targetHeight;
+                const sourceRatio = img.naturalWidth / img.naturalHeight;
+
+                let sw, sh, sx, sy;
+
+                if (sourceRatio > targetRatio) {
+                    sh = img.naturalHeight;
+                    sw = img.naturalHeight * targetRatio;
+                    sx = (img.naturalWidth - sw) / 2;
+                    sy = 0;
+                } else {
+                    sw = img.naturalWidth;
+                    sh = img.naturalWidth / targetRatio;
+                    sx = 0;
+                    sy = (img.naturalHeight - sh) / 2;
+                }
+
+                this._outputCanvasCtx?.drawImage(
+                    img,
+                    sx,
+                    sy,
+                    sw,
+                    sh,
+                    0,
+                    0,
+                    targetWidth,
+                    targetHeight
+                );
+            } else {
+                this._outputCanvasCtx?.drawImage(
+                    img,
+                    0,
+                    0,
+                    targetWidth,
+                    targetHeight
+                );
+            }
         } else {
             this._outputCanvasCtx.filter = `blur(${this._options.virtualBackground.blurValue}px)`;
 
